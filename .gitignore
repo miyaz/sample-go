@@ -1,0 +1,7 @@
+#コンパイル済みファイルを無視
+/bin
+
+#その他
+.project
+.DS_Store
+.idea
