@@ -74,7 +74,6 @@ func proxy(url string) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
 	byteArray, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
