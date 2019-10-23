@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"sort"
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation"
@@ -52,8 +53,16 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%s", string(resp))
 		return
 	}
-	for key, vals := range queryKeys {
-		for _, val := range vals {
+
+	keys := make([]string, 0, len(queryKeys))
+	for k := range queryKeys {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		sort.Strings(queryKeys[key])
+		for _, val := range queryKeys[key] {
 			fmt.Fprintf(w, "%s=%v\n", key, val)
 		}
 	}
@@ -65,7 +74,6 @@ func proxy(url string) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
 	byteArray, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err

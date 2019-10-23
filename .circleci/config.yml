@@ -1,0 +1,124 @@
+version: 2.1
+
+executors:
+  docker-go:
+    parameters:
+      go-version:
+        type: string
+    docker:
+      - image: circleci/golang:<< parameters.go-version >>
+        environment:
+          GO111MODULE: "on"
+    working_directory: /go/src/d-kuro/go-sandbox
+
+commands:
+  go_mod_download:
+    steps:
+      - restore_cache:
+          name: Restore go modules cache
+          keys:
+            - go-modules-{{ checksum "go.sum" }}
+      - run: go mod download
+      - save_cache:
+          name: Save go modules cache
+          key: go-modules-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
+
+jobs:
+  build:
+    parameters:
+      go-version:
+        type: string
+      golangci-lint-version:
+        type: string
+      run_lint:
+        type: boolean
+        default: false
+      run_test:
+        type: boolean
+        default: false
+
+    executor:
+      name: docker-go
+      go-version: << parameters.go-version >>
+
+    steps:
+      - checkout
+      - go_mod_download
+      - when:
+          condition: << parameters.run_lint >>
+          steps:
+            - run:
+                name: Install GolangCI-Lint
+                command: curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s v<< parameters.golangci-lint-version >>
+            - run:
+                name: Run GolangCI-Lint
+                command: ./bin/golangci-lint run --tests --disable-all --enable=goimports --enable=golint --enable=govet --enable=errcheck --enable=staticcheck
+      - when:
+          condition: << parameters.run_test >>
+          steps:
+            - run:
+                name: Run Tests
+                command: go test -race -v ./...
+
+  deploy_qa:
+    parameters:
+      go-version:
+        type: string
+
+    executor:
+      name: docker-go
+      go-version: << parameters.go-version >>
+
+    steps:
+      - checkout
+      - run:
+          name: deploy for qa
+          command: |
+            echo -e "Host git-codecommit.*.amazonaws.com\n  User ${IAM_SSH_KEY_ID_QA}\n  StrictHostKeyChecking no\n  UserKnownHostsFile=/dev/null" >> ${HOME}/.ssh/config
+            git push ssh://git-codecommit.ap-northeast-1.amazonaws.com/v1/repos/sample-go develop
+
+  deploy_prod:
+    parameters:
+      go-version:
+        type: string
+
+    executor:
+      name: docker-go
+      go-version: << parameters.go-version >>
+
+    steps:
+      - checkout
+      - run:
+          name: deploy for production
+          command: |
+            echo -e "Host git-codecommit.*.amazonaws.com\n  User ${IAM_SSH_KEY_ID}\n  StrictHostKeyChecking no\n  UserKnownHostsFile=/dev/null" >> ${HOME}/.ssh/config
+            git push ssh://git-codecommit.ap-northeast-1.amazonaws.com/v1/repos/sample-go master
+
+workflows:
+  golang-workflow:
+    jobs:
+      - build:
+          go-version: "1.13.1"
+          golangci-lint-version: "1.19.1"
+          run_lint: true
+          run_test: true
+          filters:
+            branches:
+              ignore:
+                - develop
+                - master
+
+      - deploy_qa:
+          go-version: "1.13.1"
+          filters:
+            branches:
+              only: develop
+
+      - deploy_prod:
+          go-version: "1.13.1"
+          filters:
+            branches:
+              only: master
+
