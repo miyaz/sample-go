@@ -10,7 +10,7 @@ import (
 
 func TestHandler(t *testing.T) {
 	var uri, expected string
-	uri = "/?hoge=fug"
+	uri = "/?hoge=fuga"
 	b, err := get(uri)
 	if err != nil {
 		t.Errorf("%v", err)
